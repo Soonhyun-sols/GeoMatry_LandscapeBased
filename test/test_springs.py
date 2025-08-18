@@ -1,6 +1,5 @@
 import sys
 sys.path.append("..")
-from torch.testing import assert_close
 import torch
 from geomatry.ff.springs import SpringFF
 
@@ -8,6 +7,7 @@ from geomatry.ff.springs import SpringFF
 def test_spring_ff():
     # model preparation
     from config import get_spring_ff_param, get_spring_system
+    from torch.testing import assert_close
     max_Za = 10
     spring_ff = SpringFF(max_Za=max_Za)
     k, r0 = get_spring_ff_param(max_Za)
