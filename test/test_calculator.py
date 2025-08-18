@@ -3,12 +3,14 @@ sys.path.append("..")
 from geomatry.opt.calculator import NNFFCalculator
 from geomatry.ff.springs import SpringFF
 from geomatry.ff.graph import get_given_graph_builder
-from config import get_spring_system, get_spring_ff_param
+
 from ase import Atoms
+import torch
 import numpy as np
 
 
 def test_calculator():
+    from config import get_spring_system, get_spring_ff_param
     N = 10
     N_pairs = N * (N - 1) // 4
     max_Za = 10
@@ -24,4 +26,4 @@ def test_calculator():
     E = model.get_E(Ra, Za, idx_i, idx_j)
     Fa = model.get_Fa(E, Ra)
     assert np.allclose(energy, E.detach().numpy())
-    assert np.allclose(forces, -Fa.detach().numpy())
+    assert np.allclose(forces, Fa.detach().numpy())

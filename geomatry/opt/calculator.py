@@ -23,7 +23,7 @@ class NNFFCalculator(Calculator):
         Ra = torch.tensor(atoms.positions, requires_grad=True)
         Za = torch.tensor(atoms.numbers)
         energy = self.model.get_E(Ra, Za, idx_i, idx_j)
-        forces = -self.model.get_Fa(energy, Ra)
+        forces = self.model.get_Fa(energy, Ra)
         self.results["energy"] = energy.detach().numpy()
         self.results["forces"] = forces.detach().numpy()
         
