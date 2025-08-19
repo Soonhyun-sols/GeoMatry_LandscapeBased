@@ -3,9 +3,10 @@ from torch import IntTensor, FloatTensor
 from torch.nn import Module
 from torch.nn.functional import pairwise_distance
 from .utils import gather_nd
+from .baseFF import baseFF
 
 
-class SpringFF(Module):
+class SpringFF(baseFF):
     '''
     Spring force field model between different atom types.
     The force field is defined by:
@@ -16,8 +17,7 @@ class SpringFF(Module):
     The force field is defined for all atom types up to max_Za.
     '''
     def __init__(self, max_Za: int):
-        super().__init__()
-        self.max_Za = max_Za
+        super().__init__(max_Za)
         self.register_parameter("k", torch.nn.Parameter(torch.ones(max_Za + 1, max_Za + 1)))
         self.register_parameter("r0", torch.nn.Parameter(torch.ones(max_Za + 1, max_Za + 1)))
 
@@ -45,8 +45,3 @@ class SpringFF(Module):
         kij = gather_nd(self.k, Zij)
         r0ij = gather_nd(self.r0, Zij)
         return torch.sum(kij * (rij - r0ij) ** 2 / 2) / 2 # divide by 2 because we have two edges for each pair
-    
-    def get_Fa(self, E: FloatTensor, Ra: FloatTensor) -> FloatTensor:
-        Fa = -torch.autograd.grad(E, Ra)[0]
-        return Fa
-        

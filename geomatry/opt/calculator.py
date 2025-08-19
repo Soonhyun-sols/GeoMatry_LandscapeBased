@@ -27,4 +27,3 @@ class NNFFCalculator(Calculator):
         self.results["energy"] = energy.detach().numpy()
         self.results["forces"] = forces.detach().numpy()
         
-        

@@ -17,7 +17,6 @@ def get_spring_system(N: int, N_pairs: int, max_Za: int, start_Za: int=0) -> Tup
     Ra.requires_grad_()
     Za = torch.randint(start_Za, max_Za + 1, (N,))
     full_combinations = list(combinations(range(N), 2))
-    N_pairs = N * (N - 1) // 4
     edge_index_undirected = torch.tensor(random.sample(full_combinations, N_pairs))
     idx_i = torch.cat([edge_index_undirected[:, 0], edge_index_undirected[:, 1]])
     idx_j = torch.cat([edge_index_undirected[:, 1], edge_index_undirected[:, 0]])
