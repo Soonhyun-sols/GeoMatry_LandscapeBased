@@ -1,5 +1,5 @@
 import torch
-from torch import FloatTensor
+from torch import FloatTensor, IntTensor
 
 
 @torch.jit.unused
@@ -56,3 +56,32 @@ def compute_hessians_loop(
             hessian.append(hess_row)
     hessian = torch.stack(hessian)
     return hessian
+
+
+def reduce_hessian(hessian: FloatTensor, rows: IntTensor, cols: IntTensor) -> FloatTensor:
+    """
+    Delete specified rows and columns from the Hessian matrix.
+
+    Args:
+        hessian (FloatTensor): The Hessian matrix of shape (N, N) or (N*3, N*3).
+        rows (IntTensor): 1D tensor of row indices to delete.
+        cols (IntTensor): 1D tensor of column indices to delete.
+
+    Returns:
+        FloatTensor: The Hessian matrix with specified rows and columns removed.
+    """
+    # Sort and make unique for safety
+    rows = torch.unique(rows)
+    cols = torch.unique(cols)
+
+    # Create masks for rows and columns to keep
+    N = hessian.shape[0]
+    device = hessian.device
+    keep_rows = torch.ones(N, dtype=torch.bool, device=device)
+    keep_cols = torch.ones(N, dtype=torch.bool, device=device)
+    keep_rows[rows] = False
+    keep_cols[cols] = False
+
+    # Apply masks to delete rows and columns
+    hessian_reduced = hessian[keep_rows][:, keep_cols]
+    return hessian_reduced
