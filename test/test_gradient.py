@@ -17,8 +17,8 @@ def test_dFa_div_dtheta_vmap():
     E = model.get_E(Ra, Za, idx_i, idx_j)
     Fa = model.get_Fa(E, Ra)
 
-    dFa_div_dtheta_vmap = get_dFa_div_dtheta_vmap(model, Fa)
-    dFa_div_dtheta_loop = get_dFa_div_dtheta_loop(model, Fa)
+    dFa_div_dtheta_vmap = get_dFa_div_dtheta_vmap(model, Fa.view(-1))
+    dFa_div_dtheta_loop = get_dFa_div_dtheta_loop(model, Fa.view(-1))
 
     assert dFa_div_dtheta_vmap.keys() == dFa_div_dtheta_loop.keys()
     for name in dFa_div_dtheta_vmap.keys():

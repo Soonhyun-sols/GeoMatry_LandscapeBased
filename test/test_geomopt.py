@@ -19,7 +19,7 @@ def test_BFGS():
     atoms = Atoms(numbers=[1, 2, 2], positions=[[0.0, 0.0, 0.0], [1 + random() * 2, 0.0, 0.0], [random() * 2, 1 + random() * 2, 0.0]])
     idx_i = torch.tensor([0, 0, 1, 1, 2, 2])
     idx_j = torch.tensor([1, 2, 0, 2, 0, 1])
-    atoms.calc = NNFFCalculator(model=model, graph_builder=get_given_graph_builder(idx_i, idx_j))
+    atoms.calc = NNFFCalculator(ff=model, graph_builder=get_given_graph_builder(idx_i, idx_j))
     optimizer = BFGS(atoms)
     optimizer.run(fmax=1e-6)
     dist_ab = np.linalg.norm(atoms.positions[0] - atoms.positions[1])

@@ -16,7 +16,7 @@ def test_calculator():
     model.reset_parameters(k=k, r0=r0)
     Ra, Za, idx_i, idx_j = _random_spring_system(N, N_pairs, max_Za, start_Za=1)
     atoms = Atoms(numbers=Za.detach().numpy(), positions=Ra.detach().numpy())
-    calculator = NNFFCalculator(model=model, graph_builder=get_given_graph_builder(idx_i, idx_j))
+    calculator = NNFFCalculator(ff=model, graph_builder=get_given_graph_builder(idx_i, idx_j))
     atoms.calc = calculator
     energy = atoms.get_potential_energy()
     forces = atoms.get_forces()

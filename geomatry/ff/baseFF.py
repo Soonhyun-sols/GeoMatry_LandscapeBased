@@ -10,6 +10,10 @@ class baseFF(Module, ABC):
         self.max_Za = max_Za
 
     @abstractmethod
+    def reset_parameters(self, **kwargs) -> None:
+        pass
+
+    @abstractmethod
     def get_E(self, Ra: FloatTensor, Za: IntTensor, idx_i: IntTensor, idx_j: IntTensor) -> FloatTensor:
         pass
     
@@ -17,6 +21,6 @@ class baseFF(Module, ABC):
         Fa = -torch.autograd.grad(E, Ra, create_graph=True, retain_graph=True)[0]
         return Fa 
     
-    def get_Haa(self, Fa: FloatTensor, Ra: FloatTensor) -> FloatTensor:
+    def get_Hessian(self, Fa: FloatTensor, Ra: FloatTensor) -> FloatTensor:
         return compute_hessians_vmap(Fa, Ra)
     

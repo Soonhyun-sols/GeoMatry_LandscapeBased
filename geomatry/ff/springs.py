@@ -22,11 +22,15 @@ class SpringFF(baseFF):
         self.register_parameter("k", torch.nn.Parameter(torch.ones(max_Za + 1, max_Za + 1)))
         self.register_parameter("r0", torch.nn.Parameter(torch.ones(max_Za + 1, max_Za + 1)))
 
-    def reset_parameters(self, k: FloatTensor, r0: FloatTensor) -> None:
+    def reset_parameters(self, k: FloatTensor, r0: FloatTensor, symmetrize: bool=True) -> None:
         assert k.shape == (self.max_Za + 1, self.max_Za + 1)
         assert r0.shape == (self.max_Za + 1, self.max_Za + 1)
-        assert torch.allclose(k, k.T)
-        assert torch.allclose(r0, r0.T)
+        if symmetrize:
+            k = (k + k.T) / 2
+            r0 = (r0 + r0.T) / 2
+        else:
+            assert torch.allclose(k, k.T)
+            assert torch.allclose(r0, r0.T)
         self.k.data = k
         self.r0.data = r0
 
@@ -48,10 +52,10 @@ class SpringFF(baseFF):
         return torch.sum(kij * (rij - r0ij) ** 2 / 2) / 2 # divide by 2 because we have two edges for each pair
 
 
-def _random_spring_ff_param(max_Za: int) -> Tuple[FloatTensor, FloatTensor]:
-    k = torch.rand(max_Za + 1, max_Za + 1, dtype=torch.float64) / 2 # symmetric
+def _random_spring_ff_param(max_Za: int, k_max: float=1.0, r0_max: float=1.0) -> Tuple[FloatTensor, FloatTensor]:
+    k = torch.rand(max_Za + 1, max_Za + 1, dtype=torch.float64) * k_max # symmetric
     k = (k + k.T) / 2
-    r0 = torch.rand(max_Za + 1, max_Za + 1, dtype=torch.float64) / 2 # symmetric
+    r0 = torch.rand(max_Za + 1, max_Za + 1, dtype=torch.float64) * r0_max # symmetric
     r0 = (r0 + r0.T) / 2
     return k, r0
 
