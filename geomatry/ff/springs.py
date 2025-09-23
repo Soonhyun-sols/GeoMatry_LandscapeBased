@@ -69,3 +69,16 @@ def _random_spring_system(N: int, N_pairs: int, max_Za: int, start_Za: int=0) ->
     idx_i = torch.cat([edge_index_undirected[:, 0], edge_index_undirected[:, 1]])
     idx_j = torch.cat([edge_index_undirected[:, 1], edge_index_undirected[:, 0]])
     return Ra, Za, idx_i, idx_j
+
+def _random_spring_systems(systemN: int, N: int, N_pairs: int, max_Za: int, start_Za: int=0) -> Tuple[FloatTensor, IntTensor, IntTensor, IntTensor]:
+    Ras=[]
+    Zas=[]
+    idx_is=[]
+    idx_js=[]
+    for i in range(systemN):
+        Ra, Za, idx_i, idx_j = _random_spring_system(N, N_pairs, max_Za, start_Za)
+        Ras.append(Ra)
+        Zas.append(Za)
+        idx_is.append(idx_i)
+        idx_js.append(idx_j)
+    return Ras, Zas, idx_is, idx_js
