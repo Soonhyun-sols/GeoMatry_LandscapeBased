@@ -29,7 +29,7 @@ def drawGraphs(optimizer_Energy,params,direction, index):
         optimizer_Energy.ff.reset_parameters(params)
     Ra_temp=copy.deepcopy(optimizer_Energy.Ra_stars[index])
     atoms=get_ase_atoms(Ra_temp, optimizer_Energy.Zas[index])
-    x=np.linspace(-2,2,30)
+    x=np.linspace(-0.1,0.1,30)
     z1=copy.deepcopy(x)
     for i in range(len(x)):
         Ra_temp[:,:]+=x[i]*direction
@@ -40,6 +40,27 @@ def drawGraphs(optimizer_Energy,params,direction, index):
     plt.scatter(x,z1)
     #plt.scatter(x,E0+x**2)
 
+
+def drawGraphs_Single(optimizer_Energy,params,direction):
+    if (np.isnan(direction[0,0])):
+        direction=np.zeros(direction.shape)
+        direction[-1,0]=1
+    if ('k' in params.keys()):
+        optimizer_Energy.ff.reset_parameters(params['k'],params['r0'])
+    else:
+        optimizer_Energy.ff.reset_parameters(params)
+    Ra_temp=copy.deepcopy(optimizer_Energy.Ra_star)
+    atoms=get_ase_atoms(Ra_temp, optimizer_Energy.Za)
+    x=np.linspace(-0.1,0.1,30)
+    z1=copy.deepcopy(x)
+    for i in range(len(x)):
+        Ra_temp[:,:]+=x[i]*direction
+        E0=optimizer_Energy.ff.get_E(Ra_temp,optimizer_Energy.Za,*optimizer_Energy.graph_builder(atoms))
+        z1[i]=E0
+        Ra_temp[:,:]-=x[i]*direction
+    E0=optimizer_Energy.ff.get_E(Ra_temp,optimizer_Energy.Za,*optimizer_Energy.graph_builder(atoms)).detach()
+    plt.scatter(x,z1)
+    #plt.scatter(x,E0+x**2)
 
 def truncated_chi2_rvs(df, low, high, size=1):
     cdf_low = chi2.cdf(low, df)
@@ -112,11 +133,11 @@ class SingleSystemOptimizer:
             N=self.Ra_star.shape[0]
             #deviations_magnitude=e_size*np.sqrt(truncated_chi2_rvs(3*N,0,3*N+sg*(6*N)**0.5,size=eN)).reshape(1,1,eN,1)
             #deviations_direction=np.random.normal(0,e_size,[N,eN,3]).reshape(1,N,eN,3)
-            deviations_magnitude=np.random.normal(0,e_size,[eN//2]).reshape(1,1,eN//2,1)
-            deviations_magnitude=np.concatenate([deviations_magnitude,-deviations_magnitude],axis=2)
+            deviations_magnitude=e_size*torch.randn([eN//2]).reshape(1,1,eN//2,1)
+            deviations_magnitude=torch.cat([deviations_magnitude,-deviations_magnitude],dim=2)
             if (eN%2==1):
-                deviations_magnitude=np.concatenate([deviations_magnitude,np.zeros([1,1,1,1])],axis=2)
-
+                deviations_magnitude=torch.cat([deviations_magnitude,np.zeros([1,1,1,1])],dim=2)
+            
             
             '''
             deviations_direction=np.random.normal(0,e_size,[N,1,3]).reshape(1,N,1,3)
@@ -130,18 +151,19 @@ class SingleSystemOptimizer:
             Fa = self.ff.get_Fa(E0, Ra_star)
             if (torch.norm(Fa)==0): break
             Fa[self.fixed_atom_indices,:]=0
-            deviations_direction = (Fa / torch.norm(Fa)).detach().numpy().reshape(1,N,1,3)
+            deviations_direction = (Fa / torch.norm(Fa)).detach().reshape(1,N,1,3)
             deviations=deviations_direction*deviations_magnitude
             Ra_temp = self.Ra_star.clone().reshape(1,-1,1,3).repeat(1,1,eN,1)
             Ra_temp += deviations
             Energies = torch.zeros([eN],dtype=torch.float64)
             for j in range(eN):
                 Energies[j] = self.ff.get_E(Ra_temp[0,:,j,:],self.Za,*self.graph_builder(get_ase_atoms(self.Ra_star, self.Za)))
-            y=(Energies-E0).detach().numpy()
+            y=(Energies-E0)
             x=deviations_magnitude.reshape(-1)**2
-            curvature = 1/(np.sum(x*y)/np.sum(x*x))
-            if (curvature<0): curvature=-curvature
-            alpha=curvature/2/(e_size**2)
+            curvature = (torch.sum(x*y)/torch.sum(x*x))
+            alpha = curvature
+            if (alpha<5): alpha=5
+            alpha=1/alpha/2
             deviations = torch.tensor(deviations_magnitude,device=self.device,requires_grad=False).float().reshape(eN)
             '''
             Emins = torch.min(Energies,dim=0,keepdim=True)[0]
@@ -156,10 +178,10 @@ class SingleSystemOptimizer:
             #loss+=torch.sum(torch.sum(logalpha*Energies,axis=0)/Energies.shape[0]-torch.sum(p*logalpha*Energies,axis=0))
             trueloss+=-np.sum((-logprob+torch.log(p)).detach().cpu().numpy())
             '''
-            loss += torch.sum((deviations.reshape(-1)**2/2/e_size/e_size - alpha * (Energies - E0))**2)/np.sum(deviations_magnitude**2)
-            trueloss += torch.sum((deviations.reshape(-1)**2/2/e_size/e_size - alpha * (Energies - E0))**2)/np.sum(deviations_magnitude**2)
+            loss += torch.sum((deviations.reshape(-1)**2/2 - alpha * (Energies - E0))**2)/torch.sum(deviations_magnitude**2)/e_size/e_size
+            trueloss += torch.sum((deviations.reshape(-1)**2/2 - alpha * (Energies - E0))**2)/torch.sum(deviations_magnitude**2)/e_size/e_size
             
-            
+            '''
             #deviations_magnitude=((1+np.random.rand(1,eN,1)*(3**3-1))**(1/3))*e_size*((3*N+sg*(6*N)**0.5)**0.5)
             deviations_magnitude=(1+np.random.rand(1,eN,1))*e_size*3
             maxerr=0
@@ -171,7 +193,7 @@ class SingleSystemOptimizer:
                 Energies[j] = self.ff.get_E(Ra_temp[0,:,j,:],self.Za,*self.graph_builder(get_ase_atoms(self.Ra_star, self.Za)))
                 dE = -Energies[j] + E0
                 maxerr=max(maxerr,torch.max(dE))
-
+            '''
             '''
             alpha_neg = 1 / (maxerr+0.001)
             
@@ -185,8 +207,8 @@ class SingleSystemOptimizer:
             loss.backward()
             optimizer.step()
             if (i%print_period==0):
-                print(i, alpha, trueloss, maxerr)
-                drawGraphs(self,self.ff.state_dict(),deviations_direction.reshape(N,3))
+                print(i, curvature.item(), alpha, trueloss)
+                drawGraphs_Single(self,self.ff.state_dict(),deviations_direction.reshape(N,3))
                 plt.show()
                 '''
                 n2=getMaxDirection(self,self.ff.state_dict())
@@ -194,10 +216,10 @@ class SingleSystemOptimizer:
                 plt.show()
                 '''
                 
-                try:
-                    self.objective_function(self.fitting._flatten(self.ff.state_dict()).detach().numpy())
-                except:
-                    print('Error finding minimum')
+                #try:
+                #    self.objective_function(self.fitting._flatten(self.ff.state_dict()).detach().numpy())
+                #except:
+                #    print('Error finding minimum')
                 
         params_0=copy.deepcopy(self.ff.state_dict())
         print('final',params_0)
@@ -262,7 +284,8 @@ class MultipleSystemOptimizer:
         index=0
         #print(self.objective_function(self.fitting._flatten(self.ff.state_dict()).detach().numpy(),index)[0])
         optimizer = torch.optim.Adam(list(self.ff.parameters()))
-        for i in tqdm(range(epoch)):       
+        bar = tqdm(range(epoch))
+        for i in bar:       
             optimizer.zero_grad()     
             loss=0
             trueloss=0
@@ -280,7 +303,7 @@ class MultipleSystemOptimizer:
             #print(loss,self.ff.nets['1_1'](distances+3))
             continue
             '''
-            for temp in range(3):
+            for temp in range(10):
                 index=np.random.randint(0,len(self.Ra_stars))
                 N=self.Ra_stars[index].shape[0]
                 deviations_magnitude=np.random.normal(0,e_size,[eN//2]).reshape(1,1,eN//2,1)
@@ -291,8 +314,8 @@ class MultipleSystemOptimizer:
                 Ra_star = self.Ra_stars[index].clone().requires_grad_(True)
                 E0 = self.ff.get_E(Ra_star, self.Zas[index],*self.graph_builders[index](get_ase_atoms(self.Ra_stars[index], self.Zas[index])))
                 Fa = self.ff.get_Fa(E0, Ra_star)
-                if (torch.norm(Fa)==0): break
                 Fa[self.fixed_atom_indices,:]=0
+                if (torch.norm(Fa)==0): break
                 deviations_direction = (Fa / torch.norm(Fa)).detach().numpy().reshape(1,N,1,3)
                 deviations = deviations_direction*deviations_magnitude
                 Ra_temp = self.Ra_stars[index].clone().reshape(1,-1,1,3).repeat(1,1,eN,1)
@@ -306,19 +329,32 @@ class MultipleSystemOptimizer:
                 y=(Energies-E0)
                 x=deviations.reshape(-1)**2
                 
-                curvature = (torch.sum(x*y)/torch.sum(x*x)).item()
+                curvature = (torch.sum(x*y)/torch.sum(x*x))
                 alpha = curvature
                 if (alpha<5): alpha=5
                 alpha=1/(alpha)/2
-                #Threshold = 10
+                Threshold = 5
                 nearMinimumLoss = torch.sum((deviations.reshape(-1)**2/2 - alpha * (Energies - E0))**2)/np.sum(deviations_magnitude**2)/e_size/e_size
-                #negativeCurvatureLoss = (Threshold>curvature)*(Threshold-curvature)**2
+                negativeCurvatureLoss = (Threshold>curvature)*(Threshold-curvature)**2
                 #mixedLoss = (negativeCurvatureLoss + nearMinimumLoss*np.exp(curvature-Threshold/2))/(1+np.exp(curvature-Threshold/2))
                 mixedLoss = nearMinimumLoss
+                #mixedLoss = negativeCurvatureLoss*100
                 loss     += mixedLoss
                 trueloss += mixedLoss
-            
+
+                alpha_new=alpha/(e_size*e_size)
                 #print(torch.norm(Fa)/curvature,curvature,mixedLoss)
+                Emins = torch.min(Energies,dim=0,keepdim=True)[0]
+                Emins = Emins.detach()
+                logprob = deviations**2/2/e_size/e_size
+                #logalpha = torch.log(torch.sum(torch.sum(torch.exp(alpha.reshape(N,1,3))*(deviations_direction_torch**2),axis=2),axis=0))
+                #exponentials=torch.exp(logprob-logalpha*(Energies-Emins).detach())
+                exponentials=torch.exp(logprob-alpha_new*(Energies-Emins).detach())
+                NormailzationConstant = torch.sum(exponentials,dim=0,keepdim=True)
+                p=(exponentials/NormailzationConstant).detach()
+                #loss+=alpha_new*(torch.sum(torch.sum(Energies,axis=0)/Energies.shape[0]-torch.sum(p*Energies,axis=0)))
+                #loss+=torch.sum(torch.sum(logalpha*Energies,axis=0)/Energies.shape[0]-torch.sum(p*logalpha*Energies,axis=0))
+                #trueloss+=-np.sum((-logprob+torch.log(p)).detach().cpu().numpy())
                 
                 
                 #deviations_magnitude=((1+np.random.rand(1,eN,1)*(3**3-1))**(1/3))*e_size*((3*N+sg*(6*N)**0.5)**0.5)
@@ -335,17 +371,20 @@ class MultipleSystemOptimizer:
                 epsilon=0.001
                 alphaneg=1/(maxerr+epsilon)
                 p=1/(1+torch.exp(alphaneg*(-Energies + E0))).detach()
-                loss += alphaneg*torch.sum((1-p)*(-Energies + E0))
-                trueloss += -torch.sum(torch.log(p))
+                #loss += alphaneg*torch.sum((1-p)*(-Energies + E0))
+                #trueloss += -torch.sum(torch.log(p))
             #loss=torch.sum((y-x)**2)
             loss.backward()
             optimizer.step()
+            bar.set_postfix(loss=f"{loss.item():.4f}")
+            #print(self.ff.state_dict()['r0'][1,1],trueloss)
             if (i%print_period==0):
                 print(i, 'curvature', curvature, nearMinimumLoss.item(), 'distance', (torch.norm(Fa)/curvature).item(), 'loss', trueloss.item())
                 #print(i, 'curvature', curvature, negativeCurvatureLoss.item(), nearMinimumLoss.item(), 'distance', (torch.norm(Fa)/curvature).item(), 'loss', trueloss.item())
                 print('trueloss',trueloss.item())
                 print('loss', loss.item())
                 print(Energies - E0)
+                #print(self.ff.state_dict())
                 drawGraphs(self,self.ff.state_dict(),deviations_direction.reshape(N,3),index)
                 plt.show()
                 '''

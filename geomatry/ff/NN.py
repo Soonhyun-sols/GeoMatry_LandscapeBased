@@ -16,9 +16,9 @@ class PairNN(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(1, hidden_dim, dtype=torch.float32),
-            nn.LeakyReLU(),
+            nn.SiLU(),
             nn.Linear(hidden_dim, hidden_dim, dtype=torch.float32),
-            nn.LeakyReLU(),
+            nn.SiLU(),
             nn.Linear(hidden_dim, 1, dtype=torch.float32),
         )
         for layer in self.net:
@@ -45,10 +45,13 @@ class NNPotentialFF(baseFF):
                 key = f"{i}_{j}"
                 self.nets[key] = PairNN(hidden_dim=hidden_dim)
     
-    def changeParamByInputDistribution(self,e_size,Ra_stars,Zas,graphbuilders):
+    def changeParamByInputDistribution(self,e_size,Ra_stars,Zas,graphbuilders,fixed):
         distributions={}
         for Ra, Za, graph_builder in zip(Ra_stars,Zas,graphbuilders):
             idx_i, idx_j=graph_builder(get_ase_atoms(Ra, Za))
+            indices=[i for i in range(len(idx_i)) if not(idx_i[i] in fixed and idx_j[i] in fixed)]
+            idx_i=idx_i[indices]
+            idx_j=idx_j[indices]
             if Ra.device == torch.device("cpu"):
                 Ri = Ra[idx_i]
                 Rj = Ra[idx_j]
@@ -75,6 +78,9 @@ class NNPotentialFF(baseFF):
                         distributions[f'{zj}_{zi}']=[r]
                     else:
                         distributions[f'{zj}_{zi}'].append(r)
+        import matplotlib.pyplot as plt
+        plt.hist(distributions['1_1'])
+        plt.show()
         import numpy as np
         for key in distributions.keys():
             mean=np.mean(distributions[key])
@@ -85,6 +91,8 @@ class NNPotentialFF(baseFF):
             std=(std**2+e_size**2)**0.5
             print(distributions)
             print(mean,std)
+            std=1
+            mean=0
             self.nets[key].state_dict()['net.0.weight']/=std
             self.nets[key].state_dict()['net.0.bias']-=mean*self.nets[key].state_dict()['net.0.weight'].reshape(-1)
 
